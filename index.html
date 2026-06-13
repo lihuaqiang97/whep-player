@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WHEP Player</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 24px;
+      color: #fff;
+    }
+    .controls {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .form-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .form-group {
+      flex: 1;
+      min-width: 200px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #0f0f23;
+      color: #fff;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4a90d9;
+    }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+    }
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #connectBtn {
+      background: #4a90d9;
+      color: #fff;
+    }
+    #connectBtn:hover { background: #357abd; }
+    #connectBtn:disabled { background: #555; cursor: not-allowed; }
+    #disconnectBtn {
+      background: #e74c3c;
+      color: #fff;
+    }
+    #disconnectBtn:hover { background: #c0392b; }
+    #disconnectBtn:disabled { background: #555; cursor: not-allowed; }
+    .status-bar {
+      display: flex;
+      gap: 16px;
+      padding: 12px 20px;
+      background: #16213e;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #555;
+    }
+    .status-dot.connected { background: #2ecc71; }
+    .status-dot.connecting { background: #f39c12; animation: pulse 1s infinite; }
+    .status-dot.error { background: #e74c3c; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .video-container {
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .placeholder {
+      color: #666;
+      font-size: 16px;
+    }
+    .log-panel {
+      background: #0f0f23;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .log-entry { padding: 2px 0; }
+    .log-info { color: #4a90d9; }
+    .log-success { color: #2ecc71; }
+    .log-error { color: #e74c3c; }
+    .log-warn { color: #f39c12; }
+    .preset-btns {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      padding: 6px 14px;
+      background: #0f0f23;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #ccc;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .preset-btn:hover { border-color: #4a90d9; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>WHEP Player</h1>
+
+    <div class="controls">
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label for="whepUrl">WHEP URL</label>
+          <input type="text" id="whepUrl" placeholder="http://host:port/path/whep" value="">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="username">Username (Basic Auth)</label>
+          <input type="text" id="username" placeholder="(optional)" value="">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="(optional)">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-item">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Idle</span>
+      </div>
+      <div class="status-item">
+        <span>ICE:</span>
+        <span id="iceStatus">-</span>
+      </div>
+      <div class="status-item">
+        <span>Frames:</span>
+        <span id="frameCount">0</span>
+      </div>
+    </div>
+
+    <div class="video-container">
+      <video id="video" autoplay muted playsinline></video>
+      <div class="placeholder" id="placeholder">Click "Connect" to start</div>
+    </div>
+
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <script>
+    let pc = null;
+    let frameCounter = null;
+    let framesDecoded = 0;
+
+    function setPreset(url) {
+      document.getElementById('whepUrl').value = url;
+    }
+
+    function log(msg, level = 'info') {
+      const panel = document.getElementById('logPanel');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${level}`;
+      entry.textContent = `[${time}] ${msg}`;
+      panel.appendChild(entry);
+      panel.scrollTop = panel.scrollHeight;
+    }
+
+    function setStatus(text, state = '') {
+      document.getElementById('statusText').textContent = text;
+      const dot = document.getElementById('statusDot');
+      dot.className = 'status-dot ' + state;
+    }
+
+    function setIceStatus(text) {
+      document.getElementById('iceStatus').textContent = text;
+    }
+
+    async function connect() {
+      const url = document.getElementById('whepUrl').value.trim();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (!url) {
+        log('Please enter a WHEP URL', 'error');
+        return;
+      }
+
+      document.getElementById('connectBtn').disabled = true;
+      document.getElementById('disconnectBtn').disabled = false;
+      document.getElementById('placeholder').style.display = 'none';
+      framesDecoded = 0;
+      document.getElementById('frameCount').textContent = '0';
+
+      setStatus('Connecting...', 'connecting');
+      log(`Connecting to: ${url}`, 'info');
+
+      try {
+        pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        });
+
+        pc.oniceconnectionstatechange = () => {
+          log(`ICE state: ${pc.iceConnectionState}`, pc.iceConnectionState === 'connected' ? 'success' : 'warn');
+          setIceStatus(pc.iceConnectionState);
+        };
+
+        pc.onconnectionstatechange = () => {
+          log(`Connection state: ${pc.connectionState}`, pc.connectionState === 'connected' ? 'success' : 'warn');
+          if (pc.connectionState === 'connected') {
+            setStatus('Connected', 'connected');
+          } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+            setStatus(pc.connectionState === 'failed' ? 'Failed' : 'Disconnected', 'error');
+          }
+        };
+
+        pc.ontrack = (event) => {
+          log(`Received ${event.track.kind} stream`, 'success');
+          const video = document.getElementById('video');
+          video.srcObject = event.streams[0];
+          video.play().catch(e => log(`Play failed: ${e.message}`, 'error'));
+
+          // Stats: decoded frames
+          frameCounter = setInterval(async () => {
+            if (!pc) return;
+            const stats = await pc.getStats();
+            for (const report of stats.values()) {
+              if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                framesDecoded = report.framesDecoded || 0;
+                document.getElementById('frameCount').textContent = framesDecoded;
+                if (report.framesDropped) {
+                  document.getElementById('frameCount').textContent += ` (dropped: ${report.framesDropped})`;
+                }
+              }
+            }
+          }, 1000);
+        };
+
+        const offer = await pc.createOffer({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true
+        });
+        await pc.setLocalDescription(offer);
+        log('SDP Offer set', 'info');
+
+        // Send WHEP request
+        const headers = {
+          'Content-Type': 'application/sdp',
+          'Accept': 'application/sdp'
+        };
+        if (username && password) {
+          headers['Authorization'] = 'Basic ' + btoa(`${username}:${password}`);
+        }
+
+        log('Sending WHEP POST request...', 'info');
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: offer.sdp
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(`HTTP ${response.status}: ${body}`);
+        }
+
+        const answerSdp = await response.text();
+        log(`Received SDP Answer (${answerSdp.length} bytes)`, 'success');
+
+        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+        log('SDP Answer set, waiting for connection...', 'info');
+
+      } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+        setStatus('Failed', 'error');
+        disconnect();
+      }
+    }
+
+    function disconnect() {
+      if (frameCounter) {
+        clearInterval(frameCounter);
+        frameCounter = null;
+      }
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+      const video = document.getElementById('video');
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+      }
+
+      document.getElementById('connectBtn').disabled = false;
+      document.getElementById('disconnectBtn').disabled = true;
+      document.getElementById('placeholder').style.display = 'block';
+      setStatus('Idle', '');
+      setIceStatus('-');
+      log('Disconnected', 'info');
+    }
+  </script>
+</body>
+</html>
